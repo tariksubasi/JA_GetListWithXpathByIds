@@ -9,12 +9,18 @@
 
 package logging.actions;
 
+import java.util.List;
+import java.util.Map;
 import com.mendix.systemwideinterfaces.core.IContext;
 import com.mendix.systemwideinterfaces.core.IMendixObject;
+import com.mendix.systemwideinterfaces.core.IMendixObjectMember;
+import com.mendix.systemwideinterfaces.core.IMendixIdentifier;
+import com.mendix.core.objectmanagement.member.MendixObjectReference;
+import com.mendix.core.objectmanagement.member.MendixObjectReferenceSet;
 import com.mendix.webui.CustomJavaAction;
 import com.mendix.core.Core;
 import com.mendix.logging.ILogNode;
-import logging.LogFormatter;
+import communitycommons.proxies.LogLevel;
 
 public class LogObjectState extends CustomJavaAction<java.lang.Void>
 {
@@ -36,11 +42,19 @@ public class LogObjectState extends CustomJavaAction<java.lang.Void>
 	public java.lang.Void executeAction() throws Exception
 	{
 		// BEGIN USER CODE
-		String node = (LogNodeName == null || LogNodeName.isEmpty()) ? "Logging" : LogNodeName;
-		ILogNode log = Core.getLogger(node);
-		if (LogFormatter.isEnabled(log, Level)) {
-			int max = MaxLength == null ? 0 : MaxLength.intValue();
-			LogFormatter.emit(log, Level, LogFormatter.describeObject(getContext(), InputObject, max));
+		try {
+			String node = (LogNodeName == null || LogNodeName.isEmpty()) ? "Logging" : LogNodeName;
+			ILogNode log = Core.getLogger(node);
+			if (isEnabled(log, Level)) {
+				int max = MaxLength == null ? 0 : MaxLength.intValue();
+				emit(log, Level, describeObject(getContext(), InputObject, max));
+			}
+		} catch (Throwable t) {
+			// Logging must never break the calling flow: swallow, only write to console.
+			try {
+				Core.getLogger("Logging").error("LogObjectState failed (ignored): " + t.getMessage());
+			} catch (Throwable ignored) {
+			}
 		}
 		return null;
 		// END USER CODE
@@ -57,5 +71,92 @@ public class LogObjectState extends CustomJavaAction<java.lang.Void>
 	}
 
 	// BEGIN EXTRA CODE
+	private static final int DEFAULT_MAX_LENGTH = 500;
+
+	// Guard heavy string building: only Trace/Debug are typically disabled in production.
+	private static boolean isEnabled(ILogNode log, LogLevel level) {
+		if (level == LogLevel.Trace) {
+			return log.isTraceEnabled();
+		}
+		if (level == LogLevel.Debug) {
+			return log.isDebugEnabled();
+		}
+		return true;
+	}
+
+	private static void emit(ILogNode log, LogLevel level, String message) {
+		LogLevel lvl = level == null ? LogLevel.Info : level;
+		switch (lvl) {
+			case Trace:
+				log.trace(message);
+				break;
+			case Debug:
+				log.debug(message);
+				break;
+			case Warning:
+				log.warn(message);
+				break;
+			case Error:
+				log.error(message);
+				break;
+			case Critical:
+				log.critical(message);
+				break;
+			case Info:
+			default:
+				log.info(message);
+				break;
+		}
+	}
+
+	private static String truncate(String value, int maxLength) {
+		if (value == null) {
+			return "<null>";
+		}
+		int max = maxLength <= 0 ? DEFAULT_MAX_LENGTH : maxLength;
+		if (value.length() <= max) {
+			return value;
+		}
+		return value.substring(0, max) + "...(+" + (value.length() - max) + " chars)";
+	}
+
+	private static String describeObject(IContext context, IMendixObject object, int maxLength) {
+		if (object == null) {
+			return "<null object>";
+		}
+		StringBuilder sb = new StringBuilder(object.getType()).append("[id=");
+		sb.append(object.getId() == null ? "new" : object.getId().toLong()).append("] {");
+		Map<String, ? extends IMendixObjectMember<?>> members = object.getMembers(context);
+		boolean first = true;
+		for (Map.Entry<String, ? extends IMendixObjectMember<?>> entry : members.entrySet()) {
+			if (!first) {
+				sb.append(", ");
+			}
+			first = false;
+			sb.append(entry.getKey()).append('=').append(describeMember(context, entry.getValue(), maxLength));
+		}
+		return sb.append('}').toString();
+	}
+
+	private static String describeMember(IContext context, IMendixObjectMember<?> member, int maxLength) {
+		try {
+			if (member instanceof MendixObjectReference) {
+				IMendixIdentifier id = ((MendixObjectReference) member).getValue(context);
+				return id == null ? "<empty ref>" : "ref(" + id.toLong() + ")";
+			}
+			if (member instanceof MendixObjectReferenceSet) {
+				List<IMendixIdentifier> ids = ((MendixObjectReferenceSet) member).getValue(context);
+				return (ids == null || ids.isEmpty()) ? "<empty list>" : "list[" + ids.size() + "]";
+			}
+			Object value = member.getValue(context);
+			if (value == null) {
+				return "<null>";
+			}
+			String text = String.valueOf(value);
+			return text.isEmpty() ? "<empty>" : truncate(text, maxLength);
+		} catch (Exception e) {
+			return "<error:" + e.getClass().getSimpleName() + ">";
+		}
+	}
 	// END EXTRA CODE
 }

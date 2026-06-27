@@ -47,7 +47,10 @@ public final class LogSink {
 					continue;
 				}
 				String name = ((ICoreAction<?>) action).getActionName();
-				if (name == null || name.isEmpty() || isOwnAction(name)) {
+				// The Java action itself and internal wrappers are unnamed / not qualified;
+				// a real microflow name is qualified as "Module.Microflow".
+				if (name == null || name.isEmpty() || name.startsWith("Unnamed")
+					|| !name.contains(".") || isOwnAction(name)) {
 					continue;
 				}
 				return name;

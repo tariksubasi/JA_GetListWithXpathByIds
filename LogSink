@@ -1,0 +1,89 @@
+package logging;
+
+import java.util.Date;
+
+import com.mendix.core.Core;
+import com.mendix.logging.ILogNode;
+import com.mendix.systemwideinterfaces.core.IContext;
+import com.mendix.systemwideinterfaces.core.IMendixObject;
+
+import communitycommons.proxies.LogLevel;
+
+/**
+ * Routes a log message to one or both sinks based on config constants:
+ * - Logging.LogToGraylog  -> the runtime log node (picked up by Graylog).
+ * - Logging.LogToDatabase -> a Logging.Logger row, written in its own system
+ *   context so the log survives even if the calling flow rolls back.
+ *
+ * Every path is fail-safe: a sink failure is swallowed and never breaks the flow.
+ */
+public final class LogSink {
+
+	private static final String CONST_GRAYLOG = "Logging.LogToGraylog";
+	private static final String CONST_DATABASE = "Logging.LogToDatabase";
+	private static final String LOGGER_ENTITY = "Logging.Logger";
+
+	private LogSink() {
+	}
+
+	public static void dispatch(ILogNode log, LogLevel level, String node, String message) {
+		if (isConstantTrue(CONST_GRAYLOG)) {
+			emit(log, level, message);
+		}
+		if (isConstantTrue(CONST_DATABASE)) {
+			writeToDatabase(node, level, message);
+		}
+	}
+
+	private static boolean isConstantTrue(String constantName) {
+		try {
+			return Boolean.TRUE.equals(Core.getConfiguration().getConstantValue(constantName));
+		} catch (Throwable t) {
+			return false;
+		}
+	}
+
+	private static void emit(ILogNode log, LogLevel level, String message) {
+		LogLevel lvl = level == null ? LogLevel.Info : level;
+		switch (lvl) {
+			case Trace:
+				log.trace(message);
+				break;
+			case Debug:
+				log.debug(message);
+				break;
+			case Warning:
+				log.warn(message);
+				break;
+			case Error:
+				log.error(message);
+				break;
+			case Critical:
+				log.critical(message);
+				break;
+			case Info:
+			default:
+				log.info(message);
+				break;
+		}
+	}
+
+	// Own system context/transaction: the row persists regardless of the business transaction outcome.
+	private static void writeToDatabase(String node, LogLevel level, String message) {
+		try {
+			IContext sys = Core.createSystemContext();
+			IMendixObject row = Core.instantiate(sys, LOGGER_ENTITY);
+			row.setValue(sys, "LogNodeName", node);
+			row.setValue(sys, "Message", message);
+			row.setValue(sys, "LogLevel", (level == null ? LogLevel.Info : level).toString());
+			row.setValue(sys, "CorrelationId", TraceContext.get());
+			row.setValue(sys, "Timestamp", new Date());
+			Core.commit(sys, row);
+		} catch (Throwable t) {
+			try {
+				Core.getLogger("Logging").error("LogSink DB write failed (ignored): " + t.getMessage());
+			} catch (Throwable ignored) {
+			}
+		}
+	}
+}

@@ -62,7 +62,7 @@ public class LogWorkflowContext extends CustomJavaAction<java.lang.Void>
 					actor = "unknown";
 				}
 
-				StringBuilder sb = new StringBuilder("WorkflowEvent { actor=").append(actor);
+				StringBuilder sb = new StringBuilder("WorkflowEvent cid=").append(logging.TraceContext.get()).append(" { actor=").append(actor);
 				if (Action != null && !Action.isEmpty()) {
 					sb.append(", action=").append(truncate(Action, max));
 				}
@@ -74,7 +74,7 @@ public class LogWorkflowContext extends CustomJavaAction<java.lang.Void>
 				}
 				sb.append(" }");
 
-				emit(log, Level, sb.toString());
+				logging.LogSink.dispatch(log, Level, node, sb.toString());
 			}
 		} catch (Throwable t) {
 			// Logging must never break the calling flow: swallow, only write to console.
@@ -123,31 +123,6 @@ public class LogWorkflowContext extends CustomJavaAction<java.lang.Void>
 			return log.isDebugEnabled();
 		}
 		return true;
-	}
-
-	private static void emit(ILogNode log, LogLevel level, String message) {
-		LogLevel lvl = level == null ? LogLevel.Info : level;
-		switch (lvl) {
-			case Trace:
-				log.trace(message);
-				break;
-			case Debug:
-				log.debug(message);
-				break;
-			case Warning:
-				log.warn(message);
-				break;
-			case Error:
-				log.error(message);
-				break;
-			case Critical:
-				log.critical(message);
-				break;
-			case Info:
-			default:
-				log.info(message);
-				break;
-		}
 	}
 
 	private static String truncate(String value, int maxLength) {

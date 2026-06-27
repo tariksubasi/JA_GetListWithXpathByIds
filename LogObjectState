@@ -47,7 +47,8 @@ public class LogObjectState extends CustomJavaAction<java.lang.Void>
 			ILogNode log = Core.getLogger(node);
 			if (isEnabled(log, Level)) {
 				int max = safeMaxLength(MaxLength);
-				emit(log, Level, describeObject(getContext(), InputObject, max));
+				String message = "ObjectState cid=" + logging.TraceContext.get() + " " + describeObject(getContext(), InputObject, max);
+				logging.LogSink.dispatch(log, Level, node, message);
 			}
 		} catch (Throwable t) {
 			// Logging must never break the calling flow: swallow, only write to console.
@@ -96,31 +97,6 @@ public class LogObjectState extends CustomJavaAction<java.lang.Void>
 			return log.isDebugEnabled();
 		}
 		return true;
-	}
-
-	private static void emit(ILogNode log, LogLevel level, String message) {
-		LogLevel lvl = level == null ? LogLevel.Info : level;
-		switch (lvl) {
-			case Trace:
-				log.trace(message);
-				break;
-			case Debug:
-				log.debug(message);
-				break;
-			case Warning:
-				log.warn(message);
-				break;
-			case Error:
-				log.error(message);
-				break;
-			case Critical:
-				log.critical(message);
-				break;
-			case Info:
-			default:
-				log.info(message);
-				break;
-		}
 	}
 
 	private static String truncate(String value, int maxLength) {

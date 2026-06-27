@@ -1,0 +1,33 @@
+package logging;
+
+/**
+ * Thread-scoped correlation id so every log line in a synchronous
+ * microflow -> sub-microflow call tree shares one id. Set it once at the entry
+ * of the main microflow (StartTrace), it is read automatically by the log
+ * actions, and cleared at the end (EndTrace).
+ *
+ * NOTE: Mendix reuses pooled threads. Always clear at flow end (and in the
+ * error handler). start() overwrites any stale value as a safety net.
+ */
+public final class TraceContext {
+
+	private static final ThreadLocal<String> CORRELATION_ID = new ThreadLocal<>();
+
+	private TraceContext() {
+	}
+
+	public static void start(String correlationId) {
+		CORRELATION_ID.set((correlationId == null || correlationId.isEmpty())
+			? Long.toHexString(System.nanoTime())
+			: correlationId);
+	}
+
+	public static String get() {
+		String value = CORRELATION_ID.get();
+		return value == null ? "-" : value;
+	}
+
+	public static void clear() {
+		CORRELATION_ID.remove();
+	}
+}

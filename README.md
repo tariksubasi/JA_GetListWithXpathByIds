@@ -121,8 +121,8 @@ girişinde `StartTrace($key)` ile cid'i **aynı iş anahtarıyla yeniden tohumla
 
 Loglar tek satır, `cid` (correlation) ve `flow` (microflow adı) ile etiketli:
 ```
-ObjectState cid=REQ-123 flow=Sales.SUB_Validate Request[id=..] {Status=<empty>, Amount=1000, Customer=ref(55), Lines=<empty list>}
-WorkflowEvent cid=REQ-123 flow=Sales.ACT_Approve { actor=ahmet, action=Request approved, targetUser=ayse(42), context=Request[id=..] {...} }
+ObjectState | cid=REQ-123 | flow=Sales.SUB_Validate | obj=Request[id=..] {Status=<empty>, Amount=1000, Customer=ref(55), Lines=<empty list>}
+WorkflowEvent | cid=REQ-123 | flow=Sales.ACT_Approve | actor=ahmet | action=Request approved | targetUser=ayse(42) | context=Request[id=..] {...}
 ```
 - **Graylog:** `cid:REQ-123` ara → tüm zincir sırayla gelir; `flow=` her satırın hangi microflow'da olduğunu gösterir.
 - **DB:** `Logger` tablosunda `CorrelationId = 'REQ-123'` filtrele.

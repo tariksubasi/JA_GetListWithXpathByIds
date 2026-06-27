@@ -47,7 +47,7 @@ public class LogObjectState extends CustomJavaAction<java.lang.Void>
 			ILogNode log = Core.getLogger(node);
 			if (isEnabled(log, Level)) {
 				int max = safeMaxLength(MaxLength);
-				String message = "ObjectState cid=" + logging.TraceContext.get() + " flow=" + logging.LogSink.currentMicroflow(getContext()) + " " + describeObject(getContext(), InputObject, max);
+				String message = "ObjectState | cid=" + logging.TraceContext.get() + " | flow=" + logging.LogSink.currentMicroflow(getContext()) + " | obj=" + describeObject(getContext(), InputObject, max);
 				logging.LogSink.dispatch(log, Level, node, message);
 			}
 		} catch (Throwable t) {

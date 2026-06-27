@@ -5,6 +5,9 @@ Bir `correlationId` (ör. talep no) ile bir akışın tüm log satırlarını bi
 null/empty/association durumunu ve onay olaylarını tek satırda yazar. Loglar config'e göre **Graylog'a**
 ve/veya **DB'deki bir entity'ye** gider. Logging kodu hata verse bile çağıran akışı asla bozmaz.
 
+Her log satırı, **içinde çalıştığı microflow adını otomatik** içerir (`flow=Module.Microflow`) — action
+stack'ten dinamik okunur, parametre yazmana gerek yoktur.
+
 ---
 
 ## 0) Gereksinim
@@ -116,12 +119,12 @@ girişinde `StartTrace($key)` ile cid'i **aynı iş anahtarıyla yeniden tohumla
 
 ## 4) Çıktı ve bug bulma
 
-Loglar tek satır, `cid` ile etiketli:
+Loglar tek satır, `cid` (correlation) ve `flow` (microflow adı) ile etiketli:
 ```
-ObjectState cid=REQ-123 Request[id=..] {Status=<empty>, Amount=1000, Customer=ref(55), Lines=<empty list>}
-WorkflowEvent cid=REQ-123 { actor=ahmet, action=Request approved, targetUser=ayse(42), context=Request[id=..] {...} }
+ObjectState cid=REQ-123 flow=Sales.SUB_Validate Request[id=..] {Status=<empty>, Amount=1000, Customer=ref(55), Lines=<empty list>}
+WorkflowEvent cid=REQ-123 flow=Sales.ACT_Approve { actor=ahmet, action=Request approved, targetUser=ayse(42), context=Request[id=..] {...} }
 ```
-- **Graylog:** `cid:REQ-123` ara → tüm zincir sırayla gelir.
+- **Graylog:** `cid:REQ-123` ara → tüm zincir sırayla gelir; `flow=` her satırın hangi microflow'da olduğunu gösterir.
 - **DB:** `Logger` tablosunda `CorrelationId = 'REQ-123'` filtrele.
 - Satırları bir LLM'e verip "kök neden nerede?" diye sorabilirsin (null/empty/association net görünür).
 
@@ -145,7 +148,7 @@ WorkflowEvent cid=REQ-123 { actor=ahmet, action=Request approved, targetUser=ays
 | Dosya | Görev |
 |---|---|
 | `TraceContext` | Thread'e bağlı `correlationId` (start/get/clear) |
-| `LogSink` | Config'e göre Graylog ve/veya DB'ye yazar (fail-safe, ayrı tx) |
+| `LogSink` | Config'e göre Graylog ve/veya DB'ye yazar (fail-safe, ayrı tx); ayrıca `currentMicroflow()` ile action stack'ten microflow adını çözer |
 | `StartTrace` / `EndTrace` | cid'i koyar / temizler |
 | `LogObjectState` | Bir objenin tüm alan/association durumunu tek satırda yazar |
 | `LogWorkflowContext` | Onay olayını (actor/action/assignee/context) tek satırda yazar |

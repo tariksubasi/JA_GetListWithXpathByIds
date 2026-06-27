@@ -5,6 +5,7 @@ import java.util.Date;
 import com.mendix.core.Core;
 import com.mendix.logging.ILogNode;
 import com.mendix.systemwideinterfaces.core.IContext;
+import com.mendix.systemwideinterfaces.core.ICoreAction;
 import com.mendix.systemwideinterfaces.core.IMendixObject;
 
 import communitycommons.proxies.LogLevel;
@@ -33,6 +34,35 @@ public final class LogSink {
 		if (isConstantTrue(CONST_DATABASE)) {
 			writeToDatabase(node, level, message);
 		}
+	}
+
+	// Resolves the microflow that the log call sits in, read dynamically from the action stack.
+	// Returns the fully qualified name (e.g. "Sales.SUB_Validate") or "-" if it cannot be determined.
+	public static String currentMicroflow(IContext context) {
+		try {
+			java.util.Stack<?> stack = context.getActionStack();
+			for (int i = stack.size() - 1; i >= 0; i--) {
+				Object action = stack.get(i);
+				if (!(action instanceof ICoreAction<?>)) {
+					continue;
+				}
+				String name = ((ICoreAction<?>) action).getActionName();
+				if (name == null || name.isEmpty() || isOwnAction(name)) {
+					continue;
+				}
+				return name;
+			}
+		} catch (Throwable ignored) {
+		}
+		return "-";
+	}
+
+	private static boolean isOwnAction(String name) {
+		return name.endsWith(".LogObjectState")
+			|| name.endsWith(".LogWorkflowContext")
+			|| name.endsWith(".StartTrace")
+			|| name.endsWith(".EndTrace")
+			|| name.endsWith(".LogSink");
 	}
 
 	private static boolean isConstantTrue(String constantName) {

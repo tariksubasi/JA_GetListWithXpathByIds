@@ -62,7 +62,7 @@ public class LogWorkflowContext extends CustomJavaAction<java.lang.Void>
 					actor = "unknown";
 				}
 
-				StringBuilder sb = new StringBuilder("WorkflowEvent cid=").append(logging.TraceContext.get()).append(" { actor=").append(actor);
+				StringBuilder sb = new StringBuilder("WorkflowEvent cid=").append(logging.TraceContext.get()).append(" flow=").append(logging.LogSink.currentMicroflow(getContext())).append(" { actor=").append(actor);
 				if (Action != null && !Action.isEmpty()) {
 					sb.append(", action=").append(truncate(Action, max));
 				}

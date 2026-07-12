@@ -142,10 +142,14 @@ public class LogWorkflowContext extends CustomJavaAction<java.lang.Void>
 		StringBuilder sb = new StringBuilder(object.getType()).append("[id=");
 		sb.append(object.getId() == null ? "new" : object.getId().toLong()).append("] {");
 		Map<String, ? extends IMendixObjectMember<?>> members = object.getMembers(context);
+		java.util.Set<String> allowed = logging.LogSink.allowedAttributes();
 		boolean first = true;
 		for (Map.Entry<String, ? extends IMendixObjectMember<?>> entry : members.entrySet()) {
 			IMendixObjectMember<?> member = entry.getValue();
 			if (member.isVirtual()) {
+				continue;
+			}
+			if (!allowed.isEmpty() && !allowed.contains(entry.getKey())) {
 				continue;
 			}
 			if (sb.length() >= TOTAL_CAP) {

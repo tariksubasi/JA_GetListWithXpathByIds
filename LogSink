@@ -22,6 +22,7 @@ public final class LogSink {
 
 	private static final String CONST_GRAYLOG = "Logging.LogToGraylog";
 	private static final String CONST_DATABASE = "Logging.LogToDatabase";
+	private static final String CONST_ALLOWED = "Logging.LogAllowedAttributes";
 	private static final String LOGGER_ENTITY = "Logging.Logger";
 
 	private LogSink() {
@@ -66,6 +67,28 @@ public final class LogSink {
 			|| name.endsWith(".StartTrace")
 			|| name.endsWith(".EndTrace")
 			|| name.endsWith(".LogSink");
+	}
+
+	// Comma-separated attribute-name allow-list (entity-agnostic). Empty set means "log all".
+	// A member is logged only if this set is empty or contains its name.
+	public static java.util.Set<String> allowedAttributes() {
+		try {
+			Object value = Core.getConfiguration().getConstantValue(CONST_ALLOWED);
+			String raw = value == null ? "" : value.toString().trim();
+			if (raw.isEmpty()) {
+				return java.util.Collections.emptySet();
+			}
+			java.util.Set<String> allowed = new java.util.HashSet<>();
+			for (String part : raw.split(",")) {
+				String name = part.trim();
+				if (!name.isEmpty()) {
+					allowed.add(name);
+				}
+			}
+			return allowed;
+		} catch (Throwable t) {
+			return java.util.Collections.emptySet();
+		}
 	}
 
 	private static boolean isConstantTrue(String constantName) {

@@ -51,15 +51,18 @@ Yoksa oluştur (App Explorer → Add module → `logging`). İsim **birebir** `l
 
 Access rules: sadece admin okuyabilsin (loglar hassas veri taşıyabilir).
 
-### 2.3 İki Constant
-`logging` modülüne iki **Boolean Constant** ekle:
+### 2.3 Constant'lar
+`logging` modülüne şu Constant'ları ekle:
 
-| Constant | Tip | Default |
-|---|---|---|
-| `LogToGraylog` | Boolean | `true` |
-| `LogToDatabase` | Boolean | `false` |
+| Constant | Tip | Default | Açıklama |
+|---|---|---|---|
+| `LogToGraylog` | Boolean | `true` | Graylog'a yaz |
+| `LogToDatabase` | Boolean | `false` | `Logger` entity'sine yaz |
+| `LogAllowedAttributes` | String | (boş) | Virgüllü izinli alan adları |
 
 Graylog'un olmadığı ortamda (deployment ayarlarından) `LogToDatabase = true` yap (istersen `LogToGraylog = false`).
+
+`LogAllowedAttributes` **boşsa tüm alanlar** loglanır; doluysa (ör. `Status,Amount,CorrelationId`) entity fark etmeksizin **sadece adı eşleşen** alanlar loglanır. Eşleşme büyük/küçük duyarlı, sadece boşluk trim'lenir.
 
 ### 2.4 Java action'ları oluştur (parametreleriyle)
 `logging` modülünde 4 Java action oluştur. **İsim, parametre adı/tipi ve sıra birebir aynı olmalı.**

@@ -37,11 +37,9 @@ public class ExecuteMicroflowsParallel extends CustomJavaAction<List<IMendixObje
             return Collections.emptyList();
         }
 
-        String[] rawNames = MicroflowNames.split(",");
-
         List<String> microflowNames = new ArrayList<>();
 
-        for (String rawName : rawNames)
+        for (String rawName : MicroflowNames.split(","))
         {
             if (rawName != null && !rawName.trim().isEmpty())
             {
@@ -54,21 +52,16 @@ public class ExecuteMicroflowsParallel extends CustomJavaAction<List<IMendixObje
             return Collections.emptyList();
         }
 
-        int parallelism;
+        int parallelism =
+            MaxParallelism == null || MaxParallelism <= 0
+                ? microflowNames.size()
+                : Math.min(
+                    MaxParallelism.intValue(),
+                    microflowNames.size()
+                );
 
-        if (MaxParallelism == null || MaxParallelism <= 0)
-        {
-            parallelism = microflowNames.size();
-        }
-        else
-        {
-            parallelism = Math.min(
-                MaxParallelism.intValue(),
-                microflowNames.size()
-            );
-        }
-
-        ExecutorService executor = Executors.newFixedThreadPool(parallelism);
+        ExecutorService executor =
+            Executors.newFixedThreadPool(parallelism);
 
         try
         {
@@ -89,18 +82,19 @@ public class ExecuteMicroflowsParallel extends CustomJavaAction<List<IMendixObje
             CompletableFuture
                 .allOf(
                     futures.toArray(
-                        new CompletableFuture[0]
+                        new CompletableFuture<?>[0]
                     )
                 )
                 .join();
 
-            List<IMendixObject> finalResult = new ArrayList<>();
+            List<IMendixObject> finalResult =
+                new ArrayList<>();
 
             for (CompletableFuture<List<IMendixObject>> future : futures)
             {
                 List<IMendixObject> result = future.join();
 
-                if (result != null)
+                if (result != null && !result.isEmpty())
                 {
                     finalResult.addAll(result);
                 }
@@ -118,7 +112,7 @@ public class ExecuteMicroflowsParallel extends CustomJavaAction<List<IMendixObje
             }
 
             throw new RuntimeException(
-                "Parallel microflow execution failed",
+                "Parallel microflow execution failed.",
                 cause
             );
         }
@@ -128,15 +122,19 @@ public class ExecuteMicroflowsParallel extends CustomJavaAction<List<IMendixObje
         }
     }
 
-    private List<IMendixObject> executeMicroflow(String microflowName)
+    private List<IMendixObject> executeMicroflow(
+        String microflowName
+    )
     {
         try
         {
-            IContext context = getContext().createClone();
+            IContext context =
+                getContext().createClone();
 
-            Object result = Core
-                .microflowCall(microflowName)
-                .execute(context);
+            Object result =
+                Core
+                    .microflowCall(microflowName)
+                    .execute(context);
 
             if (result == null)
             {
@@ -145,37 +143,42 @@ public class ExecuteMicroflowsParallel extends CustomJavaAction<List<IMendixObje
 
             if (!(result instanceof List<?>))
             {
-                throw new RuntimeException(
-                    "Microflow does not return a List: "
+                throw new IllegalStateException(
+                    "Microflow must return a Mendix object list. Microflow: "
                         + microflowName
-                        + ". Returned type: "
+                        + ", actual return type: "
                         + result.getClass().getName()
                 );
             }
 
             List<?> rawList = (List<?>) result;
 
+            if (rawList.isEmpty())
+            {
+                return Collections.emptyList();
+            }
+
             List<IMendixObject> resultList =
                 new ArrayList<>(rawList.size());
 
-            for (Object object : rawList)
+            for (Object item : rawList)
             {
-                if (object == null)
+                if (item == null)
                 {
                     continue;
                 }
 
-                if (!(object instanceof IMendixObject))
+                if (!(item instanceof IMendixObject))
                 {
-                    throw new RuntimeException(
-                        "Microflow returned a list containing a non-Mendix object: "
+                    throw new IllegalStateException(
+                        "Microflow returned an unsupported list item. Microflow: "
                             + microflowName
-                            + ". Object type: "
-                            + object.getClass().getName()
+                            + ", item type: "
+                            + item.getClass().getName()
                     );
                 }
 
-                resultList.add((IMendixObject) object);
+                resultList.add((IMendixObject) item);
             }
 
             return resultList;
@@ -183,8 +186,7 @@ public class ExecuteMicroflowsParallel extends CustomJavaAction<List<IMendixObje
         catch (Exception e)
         {
             throw new RuntimeException(
-                "Error while executing microflow: "
-                    + microflowName,
+                "Error executing microflow: " + microflowName,
                 e
             );
         }

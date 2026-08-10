@@ -1,0 +1,198 @@
+package yourmodule.actions;
+
+import com.mendix.core.Core;
+import com.mendix.systemwideinterfaces.core.IContext;
+import com.mendix.systemwideinterfaces.core.IMendixObject;
+import com.mendix.webui.CustomJavaAction;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class ExecuteMicroflowsParallel extends CustomJavaAction<List<IMendixObject>>
+{
+    private final String MicroflowNames;
+    private final Long MaxParallelism;
+
+    public ExecuteMicroflowsParallel(
+        IContext context,
+        String MicroflowNames,
+        Long MaxParallelism
+    )
+    {
+        super(context);
+        this.MicroflowNames = MicroflowNames;
+        this.MaxParallelism = MaxParallelism;
+    }
+
+    @Override
+    public List<IMendixObject> executeAction() throws Exception
+    {
+        if (MicroflowNames == null || MicroflowNames.trim().isEmpty())
+        {
+            return Collections.emptyList();
+        }
+
+        String[] rawNames = MicroflowNames.split(",");
+
+        List<String> microflowNames = new ArrayList<>();
+
+        for (String rawName : rawNames)
+        {
+            if (rawName != null && !rawName.trim().isEmpty())
+            {
+                microflowNames.add(rawName.trim());
+            }
+        }
+
+        if (microflowNames.isEmpty())
+        {
+            return Collections.emptyList();
+        }
+
+        int parallelism;
+
+        if (MaxParallelism == null || MaxParallelism <= 0)
+        {
+            parallelism = microflowNames.size();
+        }
+        else
+        {
+            parallelism = Math.min(
+                MaxParallelism.intValue(),
+                microflowNames.size()
+            );
+        }
+
+        ExecutorService executor = Executors.newFixedThreadPool(parallelism);
+
+        try
+        {
+            List<CompletableFuture<List<IMendixObject>>> futures =
+                new ArrayList<>();
+
+            for (String microflowName : microflowNames)
+            {
+                CompletableFuture<List<IMendixObject>> future =
+                    CompletableFuture.supplyAsync(
+                        () -> executeMicroflow(microflowName),
+                        executor
+                    );
+
+                futures.add(future);
+            }
+
+            CompletableFuture
+                .allOf(
+                    futures.toArray(
+                        new CompletableFuture[0]
+                    )
+                )
+                .join();
+
+            List<IMendixObject> finalResult = new ArrayList<>();
+
+            for (CompletableFuture<List<IMendixObject>> future : futures)
+            {
+                List<IMendixObject> result = future.join();
+
+                if (result != null)
+                {
+                    finalResult.addAll(result);
+                }
+            }
+
+            return finalResult;
+        }
+        catch (CompletionException e)
+        {
+            Throwable cause = e.getCause();
+
+            if (cause instanceof RuntimeException)
+            {
+                throw (RuntimeException) cause;
+            }
+
+            throw new RuntimeException(
+                "Parallel microflow execution failed",
+                cause
+            );
+        }
+        finally
+        {
+            executor.shutdown();
+        }
+    }
+
+    private List<IMendixObject> executeMicroflow(String microflowName)
+    {
+        try
+        {
+            IContext context = getContext().createClone();
+
+            Object result = Core
+                .microflowCall(microflowName)
+                .execute(context);
+
+            if (result == null)
+            {
+                return Collections.emptyList();
+            }
+
+            if (!(result instanceof List<?>))
+            {
+                throw new RuntimeException(
+                    "Microflow does not return a List: "
+                        + microflowName
+                        + ". Returned type: "
+                        + result.getClass().getName()
+                );
+            }
+
+            List<?> rawList = (List<?>) result;
+
+            List<IMendixObject> resultList =
+                new ArrayList<>(rawList.size());
+
+            for (Object object : rawList)
+            {
+                if (object == null)
+                {
+                    continue;
+                }
+
+                if (!(object instanceof IMendixObject))
+                {
+                    throw new RuntimeException(
+                        "Microflow returned a list containing a non-Mendix object: "
+                            + microflowName
+                            + ". Object type: "
+                            + object.getClass().getName()
+                    );
+                }
+
+                resultList.add((IMendixObject) object);
+            }
+
+            return resultList;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(
+                "Error while executing microflow: "
+                    + microflowName,
+                e
+            );
+        }
+    }
+
+    @Override
+    public String toString()
+    {
+        return "ExecuteMicroflowsParallel";
+    }
+}
